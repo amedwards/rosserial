@@ -269,8 +269,8 @@ class RosSerialServer:
         rospy.init_node("serial_node_%r" % (address,))
         self.startSerialClient()
      
-    def flushInput(self):
-         pass
+    # def flushInput(self):
+    #      pass
 
     def write(self, data):
         if (self.isConnected == False):
@@ -310,6 +310,7 @@ class SerialClient:
         self.mutex = thread.allocate_lock()
 
         self.lastsync = rospy.Time(0)
+        print "initial sync in the init"
         self.lastsync_lost = rospy.Time(0)
         self.timeout = timeout
         self.synced = False
@@ -365,12 +366,19 @@ class SerialClient:
         rospy.sleep(2.0) # TODO
         self.requestTopics()
         self.lastsync = rospy.Time.now()
+        print "second sync in init"
 
         signal.signal(signal.SIGINT, self.txStopRequest)
 
     def requestTopics(self):
         """ Determine topics to subscribe/publish. """
-        self.port.flushInput()
+        print "The port is:"
+        print self.port
+        #self.port.flushInput()
+        #self.port.flush()
+        self.port.open()
+        self.port.flushOutput()
+        #print "Flushed"
         # request topic sync
         self.port.write("\xff" + self.protocol_ver + "\x00\x00\xff\x00\x00\xff")
 
@@ -406,6 +414,7 @@ class SerialClient:
                 self.lastsync_lost = rospy.Time.now()
                 self.sendDiagnostics(diagnostic_msgs.msg.DiagnosticStatus.ERROR, "no sync with device")
                 self.requestTopics()
+                print "updated lastsync in run's while loop"
                 self.lastsync = rospy.Time.now()
 
             # This try-block is here because we make multiple calls to read(). Any one of them can throw
@@ -415,6 +424,7 @@ class SerialClient:
                 if self.port.inWaiting() < 1:
                     time.sleep(0.001)
                     continue
+
 
                 flag = [0,0]
                 flag[0] = self.tryRead(1)
@@ -473,6 +483,7 @@ class SerialClient:
             except IOError:
                 # One of the read calls had an issue. Just to be safe, request that the client
                 # reinitialize their topics.
+                rospy.logwarn('IOError during read')
                 self.requestTopics()
 
     def setPublishSize(self, bytes):
@@ -594,6 +605,7 @@ class SerialClient:
 
     def handleTimeRequest(self, data):
         """ Respond to device with system time. """
+        print "made it to handleTimeRequest"
         t = Time()
         t.data = rospy.Time.now()
         data_buffer = StringIO.StringIO()
